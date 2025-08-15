@@ -10,7 +10,19 @@ require('dotenv').config();
 const app = express();
 const PORT = 8080;
 
-app.use(cors());
+// Configure CORS for production
+app.use(cors({
+    origin: [
+        'https://kapiljj.github.io',
+        'https://koinlytics-app.vercel.app',
+        'http://localhost:3000',
+        'http://localhost:5000',
+        'http://127.0.0.1:5500'
+    ],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 
 // --- CONFIGURATION ---
