@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Koinlytics</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #111827; color: #F9FAFB; }
+        .card { background-color: #1F2937; border: 1px solid #374151; border-radius: 0.75rem; }
+        .btn { transition: all 0.2s; }
+        .btn:hover { transform: translateY(-2px); }
+        .loader { border: 4px solid #4B5563; border-top: 4px solid #3B82F6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .hidden { display: none; }
+        .user-row { cursor: pointer; transition: background-color 0.2s; }
+        .user-row:hover { background-color: #374151; }
+        .success { background-color: #065f46; border-color: #10b981; }
+        .error { background-color: #7f1d1d; border-color: #ef4444; }
+        .modal-overlay { background-color: rgba(0, 0, 0, 0.75); }
+    </style>
+</head>
+<body class="p-4 sm:p-6 md:p-8">
+    <div class="max-w-7xl mx-auto min-h-screen flex flex-col">
+        <header class="mb-8 flex justify-between items-center">
+            <div>
+                <h1 class="text-3xl sm:text-4xl font-bold text-white">Koinlytics Admin</h1>
+                <p id="user-email" class="text-sm text-gray-400 mt-1"></p>
+            </div>
+            <div>
+                <button id="dashboard-button" class="btn bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg mr-4">Dashboard</button>
+                <button id="refresh-admin" class="btn bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg mr-4">Refresh</button>
+                <button id="settings-button" class="btn bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg mr-4">Settings</button>
+                <button id="logout-button" class="btn bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg">Logout</button>
+            </div>
+        </header>
+
+        <main class="flex-grow space-y-8">
+            <!-- Welcome Banner for Admin -->
+            <div class="card p-6 bg-gradient-to-r from-purple-600 to-blue-600 border-0">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h2 class="text-2xl font-bold text-white mb-2">Welcome, Administrator!</h2>
+                        <p class="text-purple-100">Manage users, monitor system status, and control platform access</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-sm text-purple-200">Quick Access</p>
+                        <p class="text-xs text-purple-100">Ctrl+Shift+D for Dashboard</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Admin Stats Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div class="card p-6">
+                    <h3 class="text-lg font-medium text-gray-400">Total Users</h3>
+                    <p id="total-users" class="text-3xl font-bold text-white mt-2">-</p>
+                </div>
+                <div class="card p-6">
+                    <h3 class="text-lg font-medium text-gray-400">Active Users</h3>
+                    <p id="active-users" class="text-3xl font-bold text-green-400 mt-2">-</p>
+                </div>
+                <div class="card p-6">
+                    <h3 class="text-lg font-medium text-gray-400">New This Month</h3>
+                    <p id="new-users" class="text-3xl font-bold text-blue-400 mt-2">-</p>
+                </div>
+                <div class="card p-6">
+                    <h3 class="text-lg font-medium text-gray-400">Admin Users</h3>
+                    <p id="admin-users" class="text-3xl font-bold text-yellow-400 mt-2">-</p>
+                </div>
+            </div>
+
+            <!-- Add New User Section -->
+            <div class="card p-6">
+                <h2 class="text-2xl font-semibold mb-6">Add New User</h2>
+                <form id="add-user-form" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label for="new-user-email" class="block text-sm font-medium text-gray-300 mb-2">Email</label>
+                        <input type="email" id="new-user-email" required class="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label for="new-user-password" class="block text-sm font-medium text-gray-300 mb-2">Password</label>
+                        <input type="password" id="new-user-password" required class="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div class="flex items-end">
+                        <button type="submit" class="btn bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg w-full">Add User</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Users Management Section -->
+            <div class="card">
+                <div class="p-6 border-b border-gray-700">
+                    <div class="flex justify-between items-center">
+                        <h2 class="text-2xl font-semibold">User Management</h2>
+                        <button id="refresh-users" class="btn bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">Refresh</button>
+                    </div>
+                </div>
+                
+                <div id="users-loader" class="h-32 flex items-center justify-center">
+                    <div class="text-center">
+                        <div class="loader mx-auto"></div>
+                        <p class="mt-4 text-gray-400">Loading users...</p>
+                    </div>
+                </div>
+
+                <div id="users-content" class="hidden">
+                    <table class="w-full text-left">
+                        <thead class="border-b border-t border-gray-700 bg-gray-800/50">
+                            <tr>
+                                <th class="p-4 font-semibold">User</th>
+                                <th class="p-4 font-semibold">Status</th>
+                                <th class="p-4 font-semibold">Created</th>
+                                <th class="p-4 font-semibold">Last Sign In</th>
+                                <th class="p-4 font-semibold text-center">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="users-table-body">
+                            <!-- User rows will be injected here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- User Detail Modal -->
+    <div id="user-detail-modal" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 hidden z-50">
+        <div class="card max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div id="user-detail-content" class="p-6">
+                <!-- Modal content will be injected here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirm-modal" class="fixed inset-0 modal-overlay flex items-center justify-center p-4 hidden z-50">
+        <div class="card max-w-md w-full">
+            <div class="p-6">
+                <h3 id="confirm-title" class="text-xl font-semibold mb-4">Confirm Action</h3>
+                <p id="confirm-message" class="text-gray-300 mb-6"></p>
+                <div class="flex space-x-4">
+                    <button id="confirm-yes" class="btn bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-lg flex-1">Yes</button>
+                    <button id="confirm-no" class="btn bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-6 rounded-lg flex-1">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="notification" class="fixed top-4 right-4 p-4 rounded-lg shadow-lg hidden z-50">
+        <div class="flex items-center">
+            <span id="notification-message" class="text-white font-medium"></span>
+            <button id="notification-close" class="ml-4 text-white hover:text-gray-300">&times;</button>
+        </div>
+    </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const API_URL = 'http://localhost:8080/api';
+    let userSession = null;
+    let currentUsers = [];
+
+    const init = () => {
+        const sessionJson = localStorage.getItem('koinlytics_session');
+        if (sessionJson) {
+            userSession = JSON.parse(sessionJson);
+            if (userSession.role !== 'admin') {
+                window.location.href = 'dashboard.html';
+                return;
+            }
+            document.getElementById('user-email').textContent = `Admin: ${userSession.session.user.email}`;
+            loadUsers();
+            updateStats();
+        } else {
+            window.location.href = 'index.html';
+        }
+        addEventListeners();
+    };
+
+    const loadUsers = async () => {
+        document.getElementById('users-loader').classList.remove('hidden');
+        document.getElementById('users-content').classList.add('hidden');
+        
+        try {
+            const response = await fetch(`${API_URL}/admin/users`, {
+                headers: { 'Authorization': `Bearer ${userSession.session.access_token}` }
+            });
+            
+            if (!response.ok) {
+                const errData = await response.json();
+                throw new Error(errData.message || 'Failed to load users');
+            }
+            
+            const users = await response.json();
+            currentUsers = users;
+            renderUsers(users);
+            document.getElementById('users-content').classList.remove('hidden');
+        } catch (error) {
+            showNotification(`Failed to load users: ${error.message}`, 'error');
+        } finally {
+            document.getElementById('users-loader').classList.add('hidden');
+        }
+    };
+
+    const renderUsers = (users) => {
+        const tableBody = document.getElementById('users-table-body');
+        tableBody.innerHTML = '';
+        
+        users.forEach(user => {
+            const row = document.createElement('tr');
+            row.className = 'user-row border-b border-gray-700';
+            row.dataset.userId = user.id;
+            
+            const createdDate = new Date(user.created_at).toLocaleDateString();
+            const lastSignIn = user.last_sign_in_at ? new Date(user.last_sign_in_at).toLocaleDateString() : 'Never';
+            const status = user.email_confirmed_at ? 'Verified' : 'Pending';
+            const statusColor = user.email_confirmed_at ? 'text-green-400' : 'text-yellow-400';
+            
+            row.innerHTML = `
+                <td class="p-4">
+                    <div class="flex items-center">
+                        <div class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center mr-3">
+                            <span class="text-white font-bold">${user.email.charAt(0).toUpperCase()}</span>
+                        </div>
+                        <div>
+                            <p class="font-semibold">${user.email}</p>
+                            <p class="text-sm text-gray-400">ID: ${user.id}</p>
+                        </div>
+                    </div>
+                </td>
+                <td class="p-4">
+                    <span class="px-2 py-1 rounded-full text-xs font-medium ${statusColor} bg-opacity-20 ${statusColor === 'text-green-400' ? 'bg-green-400' : 'bg-yellow-400'}">
+                        ${status}
+                    </span>
+                </td>
+                <td class="p-4 text-sm text-gray-300">${createdDate}</td>
+                <td class="p-4 text-sm text-gray-300">${lastSignIn}</td>
+                <td class="p-4 text-center">
+                    <button class="btn bg-blue-600 hover:bg-blue-700 text-white text-sm py-1 px-3 rounded mr-2 view-user-btn">View</button>
+                    <button class="btn bg-red-600 hover:bg-red-700 text-white text-sm py-1 px-3 rounded delete-user-btn">Delete</button>
+                </td>
+            `;
+            
+            // Add event listeners
+            row.querySelector('.view-user-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                showUserDetail(user);
+            });
+            
+            row.querySelector('.delete-user-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                confirmDeleteUser(user);
+            });
+            
+            tableBody.appendChild(row);
+        });
+    };
+
+    const showUserDetail = (user) => {
+        const modal = document.getElementById('user-detail-modal');
+        const content = document.getElementById('user-detail-content');
+        
+        const createdDate = new Date(user.created_at).toLocaleString();
+        const lastSignIn = user.last_sign_in_at ? new Date(user.last_sign_in_at).toLocaleString() : 'Never';
+        const status = user.email_confirmed_at ? 'Verified' : 'Pending';
+        const statusColor = user.email_confirmed_at ? 'text-green-400' : 'text-yellow-400';
+        
+        content.innerHTML = `
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold">User Details</h2>
+                <button id="close-user-modal" class="text-2xl text-gray-400 hover:text-white">&times;</button>
+            </div>
+            
+            <div class="space-y-4">
+                <div class="flex items-center">
+                    <div class="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mr-4">
+                        <span class="text-white text-2xl font-bold">${user.email.charAt(0).toUpperCase()}</span>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-semibold">${user.email}</h3>
+                        <p class="text-gray-400">User ID: ${user.id}</p>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="bg-gray-800 p-3 rounded-lg">
+                        <p class="text-sm text-gray-400">Status</p>
+                        <p class="font-semibold ${statusColor}">${status}</p>
+                    </div>
+                    <div class="bg-gray-800 p-3 rounded-lg">
+                        <p class="text-sm text-gray-400">Phone</p>
+                        <p class="font-semibold">${user.phone || 'Not provided'}</p>
+                    </div>
+                </div>
+                
+                <div class="bg-gray-800 p-4 rounded-lg">
+                    <h4 class="font-semibold mb-2">Account Information</h4>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">Created:</span>
+                            <span>${createdDate}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">Last Sign In:</span>
+                            <span>${lastSignIn}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">Email Confirmed:</span>
+                            <span>${user.email_confirmed_at ? 'Yes' : 'No'}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        modal.classList.remove('hidden');
+        document.getElementById('close-user-modal').addEventListener('click', () => {
+            modal.classList.add('hidden');
+        });
+    };
+
+    const confirmDeleteUser = (user) => {
+        const modal = document.getElementById('confirm-modal');
+        document.getElementById('confirm-title').textContent = 'Delete User';
+        document.getElementById('confirm-message').textContent = `Are you sure you want to delete the user "${user.email}"? This action cannot be undone.`;
+        
+        modal.classList.remove('hidden');
+        
+        document.getElementById('confirm-yes').onclick = () => {
+            deleteUser(user.id);
+            modal.classList.add('hidden');
+        };
+        
+        document.getElementById('confirm-no').onclick = () => {
+            modal.classList.add('hidden');
+        };
+    };
+
+    const deleteUser = async (userId) => {
+        try {
+            const response = await fetch(`${API_URL}/admin/users/${userId}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${userSession.session.access_token}` }
+            });
+            
+            if (!response.ok) {
+                const errData = await response.json();
+                throw new Error(errData.message || 'Failed to delete user');
+            }
+            
+            showNotification('User deleted successfully', 'success');
+            loadUsers();
+            updateStats();
+        } catch (error) {
+            showNotification(`Failed to delete user: ${error.message}`, 'error');
+        }
+    };
+
+    const addUser = async (email, password) => {
+        try {
+            const response = await fetch(`${API_URL}/admin/users`, {
+                method: 'POST',
+                headers: { 
+                    'Authorization': `Bearer ${userSession.session.access_token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ email, password })
+            });
+            
+            if (!response.ok) {
+                const errData = await response.json();
+                throw new Error(errData.message || 'Failed to create user');
+            }
+            
+            showNotification('User created successfully', 'success');
+            document.getElementById('add-user-form').reset();
+            loadUsers();
+            updateStats();
+        } catch (error) {
+            showNotification(`Failed to create user: ${error.message}`, 'error');
+        }
+    };
+
+    const updateStats = () => {
+        const totalUsers = currentUsers.length;
+        const activeUsers = currentUsers.filter(u => u.last_sign_in_at).length;
+        const thisMonth = new Date().getMonth();
+        const newUsers = currentUsers.filter(u => new Date(u.created_at).getMonth() === thisMonth).length;
+        const adminUsers = currentUsers.filter(u => u.role === 'admin').length;
+        
+        document.getElementById('total-users').textContent = totalUsers;
+        document.getElementById('active-users').textContent = activeUsers;
+        document.getElementById('new-users').textContent = newUsers;
+        document.getElementById('admin-users').textContent = adminUsers;
+    };
+
+    const showNotification = (message, type = 'success') => {
+        const notification = document.getElementById('notification');
+        const messageEl = document.getElementById('notification-message');
+        
+        messageEl.textContent = message;
+        notification.className = `fixed top-4 right-4 p-4 rounded-lg shadow-lg z-50 ${type === 'success' ? 'success' : 'error'}`;
+        notification.classList.remove('hidden');
+        
+        setTimeout(() => {
+            notification.classList.add('hidden');
+        }, 5000);
+    };
+
+    const addEventListeners = () => {
+        document.getElementById('logout-button').addEventListener('click', () => {
+            localStorage.removeItem('koinlytics_session');
+            window.location.href = 'index.html';
+        });
+        
+        document.getElementById('dashboard-button').addEventListener('click', () => {
+            window.location.href = 'dashboard.html';
+        });
+        
+        document.getElementById('settings-button').addEventListener('click', () => {
+            window.location.href = 'settings.html';
+        });
+        
+        document.getElementById('refresh-users').addEventListener('click', loadUsers);
+        document.getElementById('refresh-admin').addEventListener('click', () => {
+            loadUsers();
+            updateStats();
+        });
+        
+        // Keyboard shortcuts for admin
+        document.addEventListener('keydown', (e) => {
+            // Ctrl+Shift+D to go to dashboard
+            if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+                e.preventDefault();
+                window.location.href = './dashboard.html';
+            }
+            // Ctrl+Shift+R to refresh admin data
+            if (e.ctrlKey && e.shiftKey && e.key === 'R') {
+                e.preventDefault();
+                loadUsers();
+                updateStats();
+            }
+        });
+        
+        document.getElementById('add-user-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const email = document.getElementById('new-user-email').value;
+            const password = document.getElementById('new-user-password').value;
+            addUser(email, password);
+        });
+        
+        document.getElementById('notification-close').addEventListener('click', () => {
+            document.getElementById('notification').classList.add('hidden');
+        });
+        
+        // Close modals when clicking outside
+        document.getElementById('user-detail-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'user-detail-modal') {
+                e.target.classList.add('hidden');
+            }
+        });
+        
+        document.getElementById('confirm-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'confirm-modal') {
+                e.target.classList.add('hidden');
+            }
+        });
+    };
+
+    init();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - Koinlytics</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #111827; color: #F9FAFB; }
+        .card { background-color: #1F2937; border: 1px solid #374151; border-radius: 0.75rem; }
+        .btn { transition: all 0.2s; }
+        .btn:hover { transform: translateY(-2px); }
+        .input { background-color: #374151; border: 1px solid #4B5563; border-radius: 0.5rem; padding: 0.75rem 1rem; }
+    </style>
+</head>
+<body class="p-4 sm:p-6 md:p-8">
+
+    <div class="max-w-7xl mx-auto min-h-screen flex flex-col">
+        <header class="mb-8 flex justify-between items-center">
+            <div>
+                <h1 class="text-3xl sm:text-4xl font-bold text-white">Koinlytics <span class="text-gray-400 text-2xl">Settings</span></h1>
+                <p id="user-email" class="text-sm text-gray-400 mt-1"></p>
+            </div>
+            <div>
+                <button id="back-to-portfolio-button" class="btn bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg mr-4">Back to Portfolio</button>
+                <button id="logout-button" class="btn bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg">Logout</button>
+            </div>
+        </header>
+
+        <main class="flex-grow">
+             <div class="max-w-2xl mx-auto">
+                <div class="card p-8">
+                    <h2 class="text-2xl font-semibold mb-6">Manage Connections</h2>
+                    <form id="connections-form" class="space-y-4">
+                        <input id="binance-key" type="text" class="input w-full" placeholder="Binance API Key"><input id="binance-secret" type="password" class="input w-full" placeholder="Binance Secret Key"><input id="wallet-address" type="text" class="input w-full" placeholder="Ethereum Wallet Address">
+                        <div class="flex space-x-4 pt-4">
+                            <button id="save-connections-button" type="button" class="btn w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg">Save Connections</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </main>
+    </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const API_URL = 'http://localhost:8080/api';
+    let userSession = null;
+
+    const controls = {
+        userEmail: document.getElementById('user-email'),
+        logoutButton: document.getElementById('logout-button'),
+        backButton: document.getElementById('back-to-portfolio-button'),
+        saveButton: document.getElementById('save-connections-button'),
+    };
+
+    const init = () => {
+        const sessionJson = localStorage.getItem('koinlytics_session');
+        if (sessionJson) {
+            userSession = JSON.parse(sessionJson);
+            controls.userEmail.textContent = `Logged in as: ${userSession.session.user.email}`;
+            getConnections();
+        } else {
+            window.location.href = './index.html';
+        }
+        addEventListeners();
+    };
+
+    const getConnections = async () => {
+        try {
+            const response = await fetch(`${API_URL}/connections`, { headers: { 'Authorization': `Bearer ${userSession.session.access_token}` } });
+            if (!response.ok) throw new Error('Could not fetch connections');
+            const connections = await response.json();
+            if (connections) {
+                document.getElementById('binance-key').value = connections.binance_api_key || '';
+                document.getElementById('binance-secret').value = connections.binance_api_secret || '';
+                document.getElementById('wallet-address').value = connections.wallet_address || '';
+            }
+        } catch (error) { console.error('Failed to get connections:', error); }
+    };
+
+    const saveConnections = async () => {
+        const binanceKey = document.getElementById('binance-key').value;
+        const binanceSecret = document.getElementById('binance-secret').value;
+        const walletAddress = document.getElementById('wallet-address').value;
+        await fetch(`${API_URL}/connections`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userSession.session.access_token}` }, body: JSON.stringify({ binance_api_key: binanceKey, binance_api_secret: binanceSecret, wallet_address: walletAddress }) });
+        alert('Connections saved successfully!');
+    };
+
+    const addEventListeners = () => {
+        controls.logoutButton.addEventListener('click', () => {
+            localStorage.removeItem('koinlytics_session');
+            window.location.href = './index.html';
+        });
+        controls.backButton.addEventListener('click', () => {
+            window.location.href = './dashboard.html';
+        });
+        controls.saveButton.addEventListener('click', saveConnections);
+    };
+
+    init();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Koinlytics</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #111827; color: #F9FAFB; }
+        .card { background-color: #1F2937; border: 1px solid #374151; border-radius: 0.75rem; }
+        .btn { transition: all 0.2s; }
+        .btn:hover { transform: translateY(-2px); }
+        .loader { border: 4px solid #4B5563; border-top: 4px solid #3B82F6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .hidden { display: none; }
+        .asset-nav-item { cursor: pointer; transition: background-color 0.2s; border-left: 4px solid transparent; }
+        .asset-nav-item:hover { background-color: #374151; }
+        .asset-nav-item.active { background-color: #374151; border-left-color: #3B82F6; }
+        .error-message { background-color: #991B1B; border: 1px solid #DC2626; color: #FEE2E2; }
+        .warning-message { background-color: #92400E; border: 1px solid #EA580C; color: #FED7AA; }
+        .time-filter-btn { transition: all 0.2s; }
+        .time-filter-btn.active { background-color: #3B82F6; color: white; }
+        .time-filter-btn:not(.active) { background-color: #374151; color: #9CA3AF; }
+        .metric-card { transition: all 0.3s; }
+        .metric-card:hover { transform: translateY(-4px); box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); }
+        .portfolio-chart { position: relative; height: 400px; }
+        .insight-card { transition: all 0.3s; cursor: pointer; }
+        .insight-card:hover { transform: translateY(-2px); background-color: #374151; }
+        .time-filter-btn { transition: all 0.2s; }
+        .time-filter-btn.active { background-color: #3B82F6; color: white; }
+        .time-filter-btn:not(.active) { background-color: #374151; color: #9CA3AF; }
+        .metric-card { transition: all 0.3s; }
+        .metric-card:hover { transform: translateY(-4px); box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); }
+        .portfolio-chart { position: relative; height: 400px; }
+        .insight-card { transition: all 0.3s; cursor: pointer; }
+        .insight-card:hover { transform: translateY(-2px); background-color: #374151; }
+    </style>
+</head>
+<body class="p-4 sm:p-6 md:p-8">
+
+    <div class="max-w-7xl mx-auto min-h-screen flex flex-col">
+        <header class="mb-8 flex justify-between items-center">
+            <div>
+                <h1 class="text-3xl sm:text-4xl font-bold text-white">Koinlytics</h1>
+                <p id="user-email" class="text-sm text-gray-400 mt-1"></p>
+                <div id="admin-shortcuts" class="hidden mt-2">
+                    <p class="text-xs text-purple-400">Admin shortcuts: Ctrl+Shift+A (Admin Panel) | Ctrl+Shift+R (Refresh)</p>
+                </div>
+            </div>
+            <div>
+                <button id="admin-button" class="btn bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg mr-4 hidden">Admin Panel</button>
+                <button id="refresh-button" class="btn bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg mr-4">Refresh Data</button>
+                <button id="review-button" class="btn bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg mr-4">Review Portfolio</button>
+                <button id="settings-button" class="btn bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg mr-4">Settings</button>
+                <button id="logout-button" class="btn bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg">Logout</button>
+            </div>
+        </header>
+
+        <main class="flex-grow">
+            <div id="loader-container" class="h-96 flex items-center justify-center card">
+                <div class="text-center">
+                    <div class="loader mx-auto"></div>
+                    <p id="loader-text" class="mt-4 text-gray-400">Syncing portfolio...</p>
+                </div>
+            </div>
+            
+            <div id="portfolio-content" class="hidden space-y-8">
+                <div id="error-banner" class="hidden"></div>
+                
+                <!-- Portfolio Overview Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div class="card p-6 metric-card">
+                        <h3 class="text-lg font-medium text-gray-400">Total Portfolio Value</h3>
+                        <p id="total-value" class="text-3xl font-bold text-white mt-2">$0.00</p>
+                        <p id="total-change" class="text-sm mt-1">+0.00%</p>
+                    </div>
+                    <div class="card p-6 metric-card">
+                        <h3 class="text-lg font-medium text-gray-400">24h Change</h3>
+                        <p id="change-24h" class="text-3xl font-bold mt-2">$0.00</p>
+                        <p id="change-24h-percent" class="text-sm mt-1">+0.00%</p>
+                    </div>
+                    <div class="card p-6 metric-card">
+                        <h3 class="text-lg font-medium text-gray-400">7d Change</h3>
+                        <p id="change-7d" class="text-3xl font-bold mt-2">$0.00</p>
+                        <p id="change-7d-percent" class="text-sm mt-1">+0.00%</p>
+                    </div>
+                    <div class="card p-6 metric-card">
+                        <h3 class="text-lg font-medium text-gray-400">30d Change</h3>
+                        <p id="change-30d" class="text-3xl font-bold mt-2">$0.00</p>
+                        <p id="change-30d-percent" class="text-sm mt-1">+0.00%</p>
+                    </div>
+                </div>
+
+                <!-- Portfolio Performance Chart -->
+                <div class="card p-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-semibold">Portfolio Performance</h2>
+                        <div class="flex space-x-2">
+                            <button class="time-filter-btn px-4 py-2 rounded-lg font-medium active" data-period="24h">24H</button>
+                            <button class="time-filter-btn px-4 py-2 rounded-lg font-medium" data-period="7d">7D</button>
+                            <button class="time-filter-btn px-4 py-2 rounded-lg font-medium" data-period="30d">30D</button>
+                            <button class="time-filter-btn px-4 py-2 rounded-lg font-medium" data-period="1y">1Y</button>
+                        </div>
+                    </div>
+                    <div class="portfolio-chart">
+                        <canvas id="portfolio-performance-chart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Portfolio Insights -->
+                <div class="card p-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-semibold">Portfolio Insights</h2>
+                        <button id="generate-insights" class="btn bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">Generate Insights</button>
+                    </div>
+                    <div id="insights-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div class="insight-card card p-4 border border-gray-600">
+                            <div class="flex items-center mb-3">
+                                <div class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center mr-3">
+                                    <span class="text-white text-sm">📊</span>
+                                </div>
+                                <h3 class="font-semibold">Portfolio Health</h3>
+                            </div>
+                            <p class="text-sm text-gray-400">Click to generate portfolio health analysis</p>
+                        </div>
+                        <div class="insight-card card p-4 border border-gray-600">
+                            <div class="flex items-center mb-3">
+                                <div class="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center mr-3">
+                                    <span class="text-white text-sm">💡</span>
+                                </div>
+                                <h3 class="font-semibold">Risk Assessment</h3>
+                            </div>
+                            <p class="text-sm text-gray-400">Click to analyze portfolio risk factors</p>
+                        </div>
+                        <div class="insight-card card p-4 border border-gray-600">
+                            <div class="flex items-center mb-3">
+                                <div class="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center mr-3">
+                                    <span class="text-white text-sm">🎯</span>
+                                </div>
+                                <h3 class="font-semibold">Optimization Tips</h3>
+                            </div>
+                            <p class="text-sm text-gray-400">Click to get portfolio optimization suggestions</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
+                    <div class="lg:col-span-1">
+                        <div class="card p-4">
+                            <h3 class="text-lg font-semibold mb-2 px-2">Your Assets</h3>
+                            <div id="asset-nav-list" class="space-y-1"></div>
+                        </div>
+                        
+                        <!-- Portfolio Distribution -->
+                        <div class="card p-4 mt-4">
+                            <h3 class="text-lg font-semibold mb-4">Portfolio Distribution</h3>
+                            <div class="h-48">
+                                <canvas id="portfolio-distribution-chart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="lg:col-span-3">
+                        <div id="asset-detail-content">
+                            <!-- Asset details will be rendered here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const API_URL = 'http://localhost:8080/api';
+    let userSession = null;
+    let priceHistoryChart = null;
+    let portfolioPerformanceChart = null;
+    let portfolioDistributionChart = null;
+    let portfolioDataCache = null;
+    let currentAssetId = null;
+    let currentTimePeriod = '24h';
+
+    const init = () => {
+        const sessionJson = localStorage.getItem('koinlytics_session');
+        if (sessionJson) {
+            try {
+                userSession = JSON.parse(sessionJson);
+                document.getElementById('user-email').textContent = `Logged in as: ${userSession.session.user.email}`;
+                document.getElementById('admin-button')?.classList.toggle('hidden', userSession.role !== 'admin');
+                document.getElementById('admin-shortcuts')?.classList.toggle('hidden', userSession.role !== 'admin');
+                syncPortfolio();
+            } catch (error) {
+                console.error('Invalid session data:', error);
+                localStorage.removeItem('koinlytics_session');
+                window.location.href = './index.html';
+            }
+        } else {
+            window.location.href = './index.html';
+        }
+        addEventListeners();
+    };
+
+    const showError = (message, type = 'error') => {
+        const errorBanner = document.getElementById('error-banner');
+        errorBanner.className = `card p-4 ${type === 'error' ? 'error-message' : 'warning-message'}`;
+        errorBanner.innerHTML = `<p class="font-medium">${message}</p>`;
+        errorBanner.classList.remove('hidden');
+        
+        // Auto-hide after 10 seconds
+        setTimeout(() => {
+            errorBanner.classList.add('hidden');
+        }, 10000);
+    };
+
+    const syncPortfolio = async () => {
+        const refreshBtn = document.getElementById('refresh-button');
+        const originalText = refreshBtn.textContent;
+        refreshBtn.textContent = 'Refreshing...';
+        refreshBtn.disabled = true;
+        
+        document.getElementById('loader-container').classList.remove('hidden');
+        document.getElementById('portfolio-content').classList.add('hidden');
+        document.getElementById('error-banner').classList.add('hidden');
+        
+        try {
+            const response = await fetch(`${API_URL}/sync-portfolio`, { 
+                headers: { 'Authorization': `Bearer ${userSession.session.access_token}` } 
+            });
+            
+            if (!response.ok) { 
+                const errData = await response.json(); 
+                throw new Error(errData.message || 'Failed to sync portfolio'); 
+            }
+            
+            const { portfolio } = await response.json();
+            
+            if (portfolio.error) {
+                showError(portfolio.error, 'warning');
+            } else if (portfolio.message) {
+                showError(portfolio.message, 'warning');
+            }
+            
+            portfolioDataCache = portfolio;
+            renderDashboard(portfolio);
+            document.getElementById('portfolio-content').classList.remove('hidden');
+            
+            if (portfolio.assets.length > 0) {
+                currentAssetId = portfolio.assets[0].id;
+                renderAssetDetail(portfolio.assets[0].id);
+                renderPortfolioDistribution(portfolio.assets);
+            } else {
+                // Show empty state for asset detail
+                document.getElementById('asset-detail-content').innerHTML = `
+                    <div class="card p-6 text-center">
+                        <div class="text-gray-400 mb-4">
+                            <svg class="w-16 h-16 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                            </svg>
+                        </div>
+                        <h3 class="text-lg font-semibold text-gray-300 mb-2">No Portfolio Data</h3>
+                        <p class="text-gray-400 mb-4">Connect your wallets and exchanges to start tracking your crypto portfolio</p>
+                        <button onclick="window.location.href='./settings.html'" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">
+                            Connect Accounts
+                        </button>
+                    </div>
+                `;
+            }
+        } catch (error) {
+            console.error('Portfolio sync error:', error);
+            document.getElementById('loader-text').textContent = `Sync failed: ${error.message}`;
+            showError(`Failed to sync portfolio: ${error.message}`);
+        } finally {
+            document.getElementById('loader-container').classList.add('hidden');
+            refreshBtn.textContent = originalText;
+            refreshBtn.disabled = false;
+        }
+    };
+
+    const renderDashboard = (portfolio) => {
+        const { totalValue, change24hValue, change24hPercent, assets } = portfolio;
+        
+        // Update metric cards
+        document.getElementById('total-value').textContent = formatCurrency(totalValue);
+        document.getElementById('total-change').textContent = `${change24hPercent >= 0 ? '+' : ''}${change24hPercent.toFixed(2)}%`;
+        document.getElementById('total-change').className = `text-sm mt-1 ${change24hPercent >= 0 ? 'text-green-400' : 'text-red-400'}`;
+        
+        document.getElementById('change-24h').textContent = formatCurrency(change24hValue);
+        document.getElementById('change-24h').className = `text-3xl font-bold mt-2 ${change24hValue >= 0 ? 'text-green-400' : 'text-red-400'}`;
+        document.getElementById('change-24h-percent').textContent = `${change24hPercent >= 0 ? '+' : ''}${change24hPercent.toFixed(2)}%`;
+        document.getElementById('change-24h-percent').className = `text-sm mt-1 ${change24hPercent >= 0 ? 'text-green-400' : 'text-red-400'}`;
+        
+        // Mock 7d and 30d data (in real app, fetch from API)
+        const change7d = change24hValue * 3; // Mock 7d change
+        const change7dPercent = change24hPercent * 2.5; // Mock 7d percent
+        const change30d = change24hValue * 8; // Mock 30d change
+        const change30dPercent = change24hPercent * 6; // Mock 30d percent
+        
+        document.getElementById('change-7d').textContent = formatCurrency(change7d);
+        document.getElementById('change-7d').className = `text-3xl font-bold mt-2 ${change7d >= 0 ? 'text-green-400' : 'text-red-400'}`;
+        document.getElementById('change-7d-percent').textContent = `${change7dPercent >= 0 ? '+' : ''}${change7dPercent.toFixed(2)}%`;
+        document.getElementById('change-7d-percent').className = `text-sm mt-1 ${change7dPercent >= 0 ? 'text-green-400' : 'text-red-400'}`;
+        
+        document.getElementById('change-30d').textContent = formatCurrency(change30d);
+        document.getElementById('change-30d').className = `text-3xl font-bold mt-2 ${change30d >= 0 ? 'text-green-400' : 'text-red-400'}`;
+        document.getElementById('change-30d-percent').textContent = `${change30dPercent >= 0 ? '+' : ''}${change30dPercent.toFixed(2)}%`;
+        document.getElementById('change-30d-percent').className = `text-sm mt-1 ${change30dPercent >= 0 ? 'text-green-400' : 'text-red-400'}`;
+        
+        const assetNavList = document.getElementById('asset-nav-list');
+        assetNavList.innerHTML = '';
+        
+        if (assets.length === 0) {
+            assetNavList.innerHTML = `
+                <div class="text-center p-4">
+                    <p class="text-gray-400 mb-2">No assets found</p>
+                    <p class="text-sm text-gray-500 mb-3">Add your wallet or exchange connections in Settings to see your portfolio</p>
+                    <button onclick="window.location.href='./settings.html'" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm">
+                        Go to Settings
+                    </button>
+                </div>
+            `;
+            return;
+        }
+        
+        assets.forEach((asset, index) => {
+            const navItem = document.createElement('div');
+            navItem.className = 'asset-nav-item p-3 rounded-md flex justify-between items-center';
+            if (index === 0) navItem.classList.add('active');
+            navItem.dataset.coinId = asset.id;
+            navItem.innerHTML = `
+                <div>
+                    <p class="font-bold text-white">${asset.symbol}</p>
+                    <p class="text-sm text-gray-400">${asset.amount.toFixed(4)}</p>
+                </div>
+                <p class="font-semibold text-white">${formatCurrency(asset.currentValue)}</p>
+            `;
+            navItem.addEventListener('click', () => {
+                document.querySelectorAll('.asset-nav-item').forEach(el => el.classList.remove('active'));
+                navItem.classList.add('active');
+                currentAssetId = asset.id;
+                renderAssetDetail(asset.id);
+            });
+            assetNavList.appendChild(navItem);
+        });
+        
+        // Initialize portfolio performance chart
+        renderPortfolioPerformanceChart();
+    };
+
+    const renderPortfolioPerformanceChart = () => {
+        const ctx = document.getElementById('portfolio-performance-chart')?.getContext('2d');
+        if (!ctx) return;
+        
+        // Destroy existing chart
+        if (portfolioPerformanceChart) {
+            portfolioPerformanceChart.destroy();
+            portfolioPerformanceChart = null;
+        }
+        
+        // Generate mock data based on current time period
+        const mockData = generateMockPortfolioData(currentTimePeriod);
+        
+        portfolioPerformanceChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: mockData.labels,
+                datasets: [{
+                    label: 'Portfolio Value (USD)',
+                    data: mockData.values,
+                    borderColor: '#3B82F6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    tension: 0.4,
+                    fill: true,
+                    pointRadius: 0,
+                    pointHoverRadius: 6,
+                    pointHoverBackgroundColor: '#3B82F6'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
+                },
+                scales: {
+                    x: {
+                        type: 'time',
+                        time: { 
+                            unit: currentTimePeriod === '24h' ? 'hour' : 
+                                  currentTimePeriod === '7d' ? 'day' : 
+                                  currentTimePeriod === '30d' ? 'day' : 'month'
+                        },
+                        ticks: { color: '#9CA3AF' },
+                        grid: { color: '#374151' }
+                    },
+                    y: {
+                        ticks: { 
+                            color: '#9CA3AF',
+                            callback: function(value) {
+                                return '$' + value.toLocaleString();
+                            }
+                        },
+                        grid: { color: '#374151' }
+                    }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: '#1F2937',
+                        titleColor: '#F9FAFB',
+                        bodyColor: '#D1D5DB',
+                        borderColor: '#374151',
+                        borderWidth: 1,
+                        callbacks: {
+                            label: function(context) {
+                                return 'Value: $' + context.parsed.y.toLocaleString();
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    };
+
+    const generateMockPortfolioData = (period) => {
+        const now = new Date();
+        const labels = [];
+        const values = [];
+        let baseValue = portfolioDataCache?.totalValue || 10000;
+        
+        switch (period) {
+            case '24h':
+                for (let i = 23; i >= 0; i--) {
+                    const time = new Date(now.getTime() - i * 60 * 60 * 1000);
+                    labels.push(time);
+                    const variation = (Math.random() - 0.5) * 0.1; // ±5% variation
+                    values.push(baseValue * (1 + variation));
+                }
+                break;
+            case '7d':
+                for (let i = 6; i >= 0; i--) {
+                    const time = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+                    labels.push(time);
+                    const variation = (Math.random() - 0.5) * 0.15; // ±7.5% variation
+                    values.push(baseValue * (1 + variation));
+                }
+                break;
+            case '30d':
+                for (let i = 29; i >= 0; i--) {
+                    const time = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+                    labels.push(time);
+                    const variation = (Math.random() - 0.5) * 0.2; // ±10% variation
+                    values.push(baseValue * (1 + variation));
+                }
+                break;
+            case '1y':
+                for (let i = 11; i >= 0; i--) {
+                    const time = new Date(now.getFullYear() - 1, now.getMonth() + i, 1);
+                    labels.push(time);
+                    const variation = (Math.random() - 0.5) * 0.3; // ±15% variation
+                    values.push(baseValue * (1 + variation));
+                }
+                break;
+        }
+        
+        return { labels, values };
+    };
+
+    const renderPortfolioDistribution = (assets) => {
+        const ctx = document.getElementById('portfolio-distribution-chart')?.getContext('2d');
+        if (!ctx) return;
+        
+        // Destroy existing chart
+        if (portfolioDistributionChart) {
+            portfolioDistributionChart.destroy();
+            portfolioDistributionChart = null;
+        }
+        
+        const labels = assets.map(a => a.symbol);
+        const data = assets.map(a => a.currentValue);
+        const colors = [
+            '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
+            '#06B6D4', '#84CC16', '#F97316', '#EC4899', '#6366F1'
+        ];
+        
+        portfolioDistributionChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: data,
+                    backgroundColor: colors.slice(0, labels.length),
+                    borderWidth: 0,
+                    hoverOffset: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            color: '#9CA3AF',
+                            font: { size: 11 },
+                            usePointStyle: true,
+                            padding: 15
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: '#1F2937',
+                        titleColor: '#F9FAFB',
+                        bodyColor: '#D1D5DB',
+                        borderColor: '#374151',
+                        borderWidth: 1,
+                        callbacks: {
+                            label: function(context) {
+                                const value = context.parsed;
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percentage = ((value / total) * 100).toFixed(1);
+                                return `${context.label}: $${value.toLocaleString()} (${percentage}%)`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    };
+
+    const renderAssetDetail = async (coinId) => {
+        if (!coinId) return;
+        
+        const assetDetailContent = document.getElementById('asset-detail-content');
+        assetDetailContent.innerHTML = `
+            <div class="h-96 flex items-center justify-center card">
+                <div class="text-center">
+                    <div class="loader"></div>
+                    <p class="mt-4 text-gray-400">Loading asset details...</p>
+                </div>
+            </div>
+        `;
+        
+        const assetData = portfolioDataCache?.assets?.find(a => a.id === coinId);
+        if (!assetData) {
+            assetDetailContent.innerHTML = '<div class="card p-6 text-center text-red-400">Asset data not found</div>';
+            return;
+        }
+        
+        try {
+            const [detailsRes, historyRes, transactionsRes] = await Promise.allSettled([
+                fetch(`${API_URL}/coin-details/${coinId}`),
+                fetch(`${API_URL}/historical-data-24h/${coinId}`),
+                fetch(`${API_URL}/transactions/${coinId}`)
+            ]);
+
+            let details = null;
+            let history = null;
+            let transactions = null;
+            let errors = [];
+
+            // Handle coin details
+            if (detailsRes.status === 'fulfilled' && detailsRes.value.ok) {
+                details = await detailsRes.value.json();
+            } else {
+                errors.push('Market data unavailable');
+            }
+
+            // Handle historical data
+            if (historyRes.status === 'fulfilled' && historyRes.value.ok) {
+                history = await historyRes.value.json();
+            } else {
+                errors.push('Price history unavailable');
+            }
+
+            // Handle transactions
+            if (transactionsRes.status === 'fulfilled' && transactionsRes.value.ok) {
+                transactions = await transactionsRes.value.json();
+            } else {
+                errors.push('Transaction data unavailable');
+            }
+
+            // Show warnings for partial failures
+            if (errors.length > 0) {
+                showError(`Some data unavailable: ${errors.join(', ')}`, 'warning');
+            }
+
+            // Render the asset detail view
+            renderAssetDetailView(assetData, details, history, transactions, errors);
+
+        } catch (error) {
+            console.error('Failed to render asset detail:', error);
+            assetDetailContent.innerHTML = `
+                <div class="card p-6 text-center text-red-400">
+                    <p class="text-lg font-semibold mb-2">Failed to load asset details</p>
+                    <p class="text-sm">${error.message}</p>
+                    <div class="mt-4 space-x-2">
+                        <button onclick="renderAssetDetail('${coinId}')" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">
+                            Retry
+                        </button>
+                        <button onclick="syncPortfolio()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">
+                            Refresh Portfolio
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+    };
+
+    const renderAssetDetailView = (assetData, details, history, transactions, errors) => {
+        const assetDetailContent = document.getElementById('asset-detail-content');
+        
+        let detailsHtml = '';
+        let chartHtml = '';
+        let transactionsHtml = '';
+
+        // Asset header
+        if (details) {
+            const change24h = details.price_change_percentage_24h || 0;
+            const changeColor = change24h >= 0 ? 'text-green-400' : 'text-red-400';
+            
+            detailsHtml = `
+                <div class="flex justify-between items-center mb-4">
+                    <div class="flex items-center">
+                        <img src="${details.image || '/placeholder.png'}" class="w-12 h-12 mr-4 rounded-full" alt="${details.name || assetData.symbol} logo" onerror="this.src='/placeholder.png'">
+                        <div>
+                            <h2 class="text-3xl font-bold">${details.name || assetData.symbol}</h2>
+                            <p class="text-lg text-gray-400">${assetData.amount.toFixed(4)} ${assetData.symbol} ≈ ${formatCurrency(assetData.currentValue)}</p>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-2xl font-bold">${formatCurrency(details.current_price || assetData.price)}</p>
+                        <p class="${changeColor} font-semibold">${change24h.toFixed(2)}% (24h)</p>
+                    </div>
+                </div>
+            `;
+        } else {
+            detailsHtml = `
+                <div class="flex justify-between items-center mb-4">
+                    <div class="flex items-center">
+                        <div class="w-12 h-12 mr-4 rounded-full bg-gray-600 flex items-center justify-center">
+                            <span class="text-2xl font-bold">${assetData.symbol.charAt(0)}</span>
+                        </div>
+                        <div>
+                            <h2 class="text-3xl font-bold">${assetData.symbol}</h2>
+                            <p class="text-lg text-gray-400">${assetData.amount.toFixed(4)} ${assetData.symbol} ≈ ${formatCurrency(assetData.currentValue)}</p>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-2xl font-bold">${formatCurrency(assetData.price)}</p>
+                        <p class="text-gray-400 font-semibold">Price from portfolio</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Chart section
+        if (history && history.prices && history.prices.length > 0) {
+            chartHtml = `
+                <div class="h-80 mb-8">
+                    <canvas id="price-history-chart"></canvas>
+                </div>
+            `;
+        } else {
+            chartHtml = `
+                <div class="h-80 mb-8 flex items-center justify-center bg-gray-800 rounded-lg">
+                    <p class="text-gray-400">Price chart unavailable</p>
+                </div>
+            `;
+        }
+
+        // Transactions section
+        if (transactions && transactions.length > 0) {
+            transactionsHtml = `
+                <h3 class="text-xl font-semibold mb-4">Recent Transactions (Mock)</h3>
+                <div class="space-y-2">
+                    ${transactions.map(tx => `
+                        <div class="p-3 bg-gray-800 rounded-md flex justify-between items-center">
+                            <div>
+                                <p class="font-semibold">${tx.type} <span class="text-gray-400">from ${tx.source}</span></p>
+                                <p class="text-sm text-gray-500">${tx.date}</p>
+                            </div>
+                            <p class="font-mono ${tx.type === 'Sell' ? 'text-red-400' : 'text-green-400'}">
+                                ${tx.type === 'Sell' ? '-' : '+'}${tx.amount} ${assetData.symbol}
+                            </p>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        } else {
+            transactionsHtml = `
+                <h3 class="text-xl font-semibold mb-4">Recent Transactions</h3>
+                <div class="p-4 bg-gray-800 rounded-lg text-center text-gray-400">
+                    No transaction data available
+                </div>
+            `;
+        }
+
+        assetDetailContent.innerHTML = `
+            <div class="card p-6">
+                ${detailsHtml}
+                ${chartHtml}
+                ${transactionsHtml}
+            </div>
+        `;
+
+        // Render chart if data is available
+        if (history && history.prices && history.prices.length > 0) {
+            setTimeout(() => {
+                if (!renderPriceHistoryChart(history.prices)) {
+                    // If chart fails to render, show a fallback message
+                    const chartContainer = document.querySelector('#asset-detail-content .h-80');
+                    if (chartContainer) {
+                        chartContainer.innerHTML = '<div class="flex items-center justify-center h-full"><p class="text-gray-400">Chart rendering failed. <button onclick="renderAssetDetail(\'' + currentAssetId + '\')" class="text-blue-400 hover:underline">Retry</button></p></div>';
+                    }
+                }
+            }, 100);
+        } else if (errors.includes('Price history unavailable')) {
+            // Show a message for missing price history
+            const chartContainer = document.querySelector('#asset-detail-content .h-80');
+            if (chartContainer) {
+                chartContainer.innerHTML = '<div class="flex items-center justify-center h-full"><p class="text-gray-400">Price history data is currently unavailable. <button onclick="renderAssetDetail(\'' + currentAssetId + '\')" class="text-blue-400 hover:underline">Retry</button></p></div>';
+            }
+        }
+    };
+
+    const renderPriceHistoryChart = (prices) => {
+        const ctx = document.getElementById('price-history-chart')?.getContext('2d');
+        if (!ctx) return false;
+        
+        // Destroy existing chart
+        if (priceHistoryChart) {
+            priceHistoryChart.destroy();
+            priceHistoryChart = null;
+        }
+        
+        // Wait a bit for DOM to be ready
+        setTimeout(() => {
+            const ctx = document.getElementById('price-history-chart')?.getContext('2d');
+            if (!ctx) return;
+            
+            try {
+                priceHistoryChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: prices.map(p => p[0]),
+                        datasets: [{
+                            label: 'Price (USD)',
+                            data: prices.map(p => p[1]),
+                            borderColor: '#3B82F6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            tension: 0.2,
+                            fill: true,
+                            pointRadius: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: {
+                                type: 'time',
+                                time: { unit: 'hour' },
+                                ticks: { color: '#9CA3AF' }
+                            },
+                            y: {
+                                ticks: { color: '#9CA3AF' }
+                            }
+                        },
+                        plugins: {
+                            legend: { display: false }
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error('Chart rendering error:', error);
+                return false;
+            }
+        }, 200);
+        
+        return true;
+    };
+
+    const generatePortfolioInsights = async () => {
+        if (!portfolioDataCache || !portfolioDataCache.assets || portfolioDataCache.assets.length === 0) {
+            showError('No portfolio data available for insights', 'warning');
+            return;
+        }
+
+        try {
+            const response = await fetch(`${API_URL}/portfolio-insights`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${userSession.session.access_token}`
+                },
+                body: JSON.stringify({ portfolio: portfolioDataCache })
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to generate insights');
+            }
+
+            const { insights } = await response.json();
+            
+            // Update insights container
+            const insightsContainer = document.getElementById('insights-container');
+            insightsContainer.innerHTML = `
+                <div class="col-span-full">
+                    <div class="card p-6">
+                        <h3 class="text-xl font-semibold mb-4">Portfolio Analysis</h3>
+                        <div class="prose prose-invert max-w-none">
+                            <p class="text-gray-300 leading-relaxed">${insights}</p>
+                        </div>
+                        <div class="mt-4 flex space-x-2">
+                            <button onclick="generatePortfolioInsights()" class="btn bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">
+                                Refresh Insights
+                            </button>
+                            <button onclick="renderDashboard(portfolioDataCache)" class="btn bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded">
+                                Back to Overview
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        } catch (error) {
+            showError(`Failed to generate insights: ${error.message}`, 'error');
+        }
+    };
+
+    const addEventListeners = () => {
+        document.getElementById('refresh-button').addEventListener('click', () => {
+            syncPortfolio();
+        });
+        document.getElementById('logout-button').addEventListener('click', () => {
+            localStorage.removeItem('koinlytics_session');
+            window.location.href = './index.html';
+        });
+        document.getElementById('settings-button').addEventListener('click', () => {
+            window.location.href = './settings.html';
+        });
+        const adminBtn = document.getElementById('admin-button');
+        if(adminBtn) adminBtn.addEventListener('click', () => {
+            window.location.href = './admin.html';
+        });
+        const reviewBtn = document.getElementById('review-button');
+        if(reviewBtn) reviewBtn.addEventListener('click', () => {
+            window.location.href = './review.html';
+        });
+        
+        // Time filter buttons
+        document.querySelectorAll('.time-filter-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.time-filter-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentTimePeriod = btn.dataset.period;
+                renderPortfolioPerformanceChart();
+            });
+        });
+        
+        // Generate insights button
+        document.getElementById('generate-insights').addEventListener('click', generatePortfolioInsights);
+        
+        // Keyboard shortcuts for admin users
+        document.addEventListener('keydown', (e) => {
+            if (userSession?.role === 'admin') {
+                // Ctrl+Shift+A to go to admin panel
+                if (e.ctrlKey && e.shiftKey && e.key === 'A') {
+                    e.preventDefault();
+                    window.location.href = './admin.html';
+                }
+                // Ctrl+Shift+R to refresh portfolio
+                if (e.ctrlKey && e.shiftKey && e.key === 'R') {
+                    e.preventDefault();
+                    syncPortfolio();
+                }
+            }
+        });
+    };
+
+    const formatCurrency = (value) => {
+        if (typeof value !== 'number' || isNaN(value)) return '$0.00';
+        return new Intl.NumberFormat('en-US', { 
+            style: 'currency', 
+            currency: 'USD' 
+        }).format(value);
+    };
+
+    init();
+});
+</script>
+</body>
+</html>
